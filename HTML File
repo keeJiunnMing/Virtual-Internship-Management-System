@@ -1,0 +1,646 @@
+import React, { useState } from 'react';
+import { Layout, Card, Select, Button, Table, Row, Col, Space, Tag, Image, Tabs } from 'antd';
+import { CalendarOutlined, EnvironmentOutlined, TeamOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons';
+import { PieChart, Pie, Cell, ResponsiveContainer, RadialBarChart, RadialBar, Legend, Tooltip } from 'recharts';
+import '../style/BookingBooth.css';
+import boothMap from '../assets/images/Booth Location.png';
+import { Modal } from 'antd';
+import PromptConfirm from './PromptConfirm';
+import PromptSuccess from './PromptSuccess';
+import PromptWarning from './PromptWarning';
+
+const { Content } = Layout;
+const { TabPane } = Tabs;
+
+const BoothBookingSystem = ({userRole}) => {
+    const currentUserGroup = 'Group 13';
+    const userAssignedSlot = 'A';
+    // const role = 'student';
+
+    const [selectedBooth, setSelectedBooth] = useState('');
+    // State for booth map popup
+    const [isBoothMapVisible, setIsBoothMapVisible] = useState(false);
+    // For piechart to be interactive
+    const [highlightedSlot, setHighlightedSlot] = useState(null);
+    // Handle prompt confirmation interface
+    const [showPromptConfirm, setShowPromptConfirm] = useState(false);
+    const [confirmationMessage, setConfirmationMessage] = useState('');
+    const [onConfirmCallback, setOnConfirmCallback] = useState(null);
+    // Handle prompt success interface
+    const [showPromptSuccess, setShowPromptSuccess] = useState(false);
+    const [successMessage, setSuccessMessage] = useState('');
+    // Handle prompt warning interface
+    const [showPromptWarning, setShowPromptWarning] = useState(false);
+    const [warningMessage, setWarningMessage] = useState('');
+
+    // Handler to close prompts
+    const handleCloseSuccessPrompt = () => setShowPromptSuccess(false);
+    const handleCloseWarningPrompt = () => setShowPromptWarning(false);
+
+    // Initialize all groups for both slots
+    const allGroupsSlotA = ['Group 1', 'Group 3', 'Group 5', 'Group 7', 'Group 9', 'Group 11', 'Group 13'];
+    const allGroupsSlotB = ['Group 2', 'Group 4', 'Group 6', 'Group 8', 'Group 10', 'Group 12'];
+
+    const [slotABookingDetails, setSlotABookingDetails] = useState([
+        { groupName: 'Group 1', boothNumber: 1, status: 'booked' },
+        { groupName: 'Group 3', boothNumber: 2, status: 'booked' },
+        { groupName: 'Group 5', boothNumber: 3, status: 'booked' },
+        { groupName: 'Group 7', boothNumber: 4, status: 'booked' },
+        { groupName: 'Group 9', boothNumber: 5, status: 'booked' },
+        { groupName: 'Group 11', boothNumber: 6, status: 'booked' },
+    ]);
+
+    const [slotBBookingDetails, setSlotBBookingDetails] = useState([
+        { groupName: 'Group 2', boothNumber: 4, status: 'booked' },
+        { groupName: 'Group 4', boothNumber: 5, status: 'booked' },
+        { groupName: 'Group 6', boothNumber: 6, status: 'booked' },
+        { groupName: 'Group 8', boothNumber: 7, status: 'booked' },
+        { groupName: 'Group 10', boothNumber: 8, status: 'booked' },
+    ]);
+
+    const toggleBoothMapPopup = () => {
+        setIsBoothMapVisible(!isBoothMapVisible);
+    };
+
+    // For piechart 
+    const handleLegendClick = (dataKey) => {
+        setHighlightedSlot((prev) => (prev === dataKey ? null : dataKey)); // Toggle highlighting on legend click
+    };
+
+    // Check if current group has booked
+    const isBooked = userAssignedSlot === 'A' 
+        ? slotABookingDetails.some(booking => booking.groupName === currentUserGroup)
+        : slotBBookingDetails.some(booking => booking.groupName === currentUserGroup);
+
+    // Get available booths for booking
+    const getAvailableBooths = () => {
+        const bookings = userAssignedSlot === 'A' ? slotABookingDetails : slotBBookingDetails;
+        const bookedBooths = bookings.map(b => b.boothNumber);
+        return Array.from({ length: 16 }, (_, i) => i + 1)
+            .filter(boothNum => !bookedBooths.includes(boothNum));
+    };
+
+    const handleBookBooth = () => {
+        if (!selectedBooth) {
+            setWarningMessage('Please select a valid booth number!');
+            setShowPromptWarning(true);
+            return;
+        }
+
+        if (isBooked) {
+            setWarningMessage(`You have already booked a booth in Slot ${userAssignedSlot}!`);
+            setShowPromptWarning(true);
+            return;
+        }
+
+        setConfirmationMessage(`Are you sure you want to book Booth ${selectedBooth} in Slot ${userAssignedSlot}?`);
+        setShowPromptConfirm(true);
+
+        setOnConfirmCallback(() => () => {
+            const newBooking = {
+                groupName: currentUserGroup,
+                boothNumber: parseInt(selectedBooth),
+                status: 'booked'
+            };
+
+            if (userAssignedSlot === 'A') {
+                setSlotABookingDetails(prev => [...prev, newBooking]);
+            } else {
+                setSlotBBookingDetails(prev => [...prev, newBooking]);
+            }
+
+            setSelectedBooth('');
+            setSuccessMessage(`You have successfully booked Booth ${selectedBooth} in Slot ${userAssignedSlot}`);
+            setShowPromptSuccess(true);
+            setShowPromptConfirm(false);
+        });
+    };
+    
+    const handleCancelBooking = () => {
+        if (!isBooked) {
+            setWarningMessage(`You have no booking in Slot ${userAssignedSlot} to cancel!`);
+            setShowPromptWarning(true);
+            return;
+        }
+
+        setConfirmationMessage(`Are you sure you want to cancel your booking in Slot ${userAssignedSlot}?`);
+        setShowPromptConfirm(true);
+        setOnConfirmCallback(() => () => {
+            if (userAssignedSlot === 'A') {
+                setSlotABookingDetails(prev => 
+                    prev.filter(booking => booking.groupName !== currentUserGroup)
+                );
+            } else {
+                setSlotBBookingDetails(prev => 
+                    prev.filter(booking => booking.groupName !== currentUserGroup)
+                );
+            }
+
+            setSuccessMessage(`Booking in Slot ${userAssignedSlot} cancelled successfully!`);
+            setShowPromptSuccess(true);
+            setShowPromptConfirm(false);
+        });
+    };
+
+    // Calculate statistics for admin view
+    const calculateStats = () => {
+        const slotABooked = slotABookingDetails.length;
+        const slotBBooked = slotBBookingDetails.length;
+        const totalSlotA = allGroupsSlotA.length;
+        const totalSlotB = allGroupsSlotB.length;
+
+        return [
+            { name: 'Slot A Booked', value: slotABooked },
+            { name: 'Slot A Not booked', value: totalSlotA - slotABooked },
+            { name: 'Slot B Booked', value: slotBBooked },
+            { name: 'Slot B Not booked', value: totalSlotB - slotBBooked }
+        ];
+    };
+
+    const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
+    
+    // Booking columns configuration
+    const bookingColumns = [
+        {
+            title: 'Group Name',
+            dataIndex: 'groupName',
+            key: 'groupName',
+            render: (text) => (
+                <Space>
+                    <TeamOutlined />
+                    {text}
+                    {text === currentUserGroup && userRole === 'student' && (
+                        <Tag color="cyan">Your Group</Tag>
+                    )}
+                </Space>
+            ),
+        },
+        {
+            title: 'Booth Number',
+            dataIndex: 'boothNumber',
+            key: 'boothNumber',
+            render: (number) => (
+                number ? 
+                <Tag color="blue">
+                    <EnvironmentOutlined /> Booth {number}
+                </Tag> :
+                <Tag color="orange">Not Booked</Tag>
+            ),
+        },
+        {
+            title: 'Status',
+            dataIndex: 'status',
+            key: 'status',
+            render: (status) => (
+                <Tag 
+                    icon={status === 'booked' ? <CheckOutlined /> : null}
+                    color={status === 'booked' ? 'success' : 'default'}
+                >
+                    {status === 'booked' ? 'Booked' : 'Not Booked'}
+                </Tag>
+            ),
+        }
+    ];
+
+    // Get all groups for display (including unbooked)
+    const getAllGroupsWithStatus = (slot) => {
+        const groups = slot === 'A' ? allGroupsSlotA : allGroupsSlotB;
+        const bookings = slot === 'A' ? slotABookingDetails : slotBBookingDetails;
+        
+        return groups.map(group => {
+            const booking = bookings.find(b => b.groupName === group);
+            return booking || {
+                groupName: group,
+                boothNumber: null,
+                status: 'not booked'
+            };
+        });
+    };    
+
+    // For student view, use the userAssignedSlot
+    const getStudentGroupsWithStatus = () => {
+        return getAllGroupsWithStatus(userAssignedSlot);
+    };
+
+    const calculatePercentage = (booked, total) => {
+        return Math.round((booked / total) * 100);
+    };
+
+    return (
+        <Layout className={`min-h-screen ${userRole === 'admin' ? 'admin-container' : ''}`}>
+            <div className="fullscreen-white-container">
+            <Content className={`p-6 ${userRole === 'student' ? 'booking-container' : ''}`}>
+                {/* Booth Map Section */}
+                {/* Student View */}
+                {userRole === 'student' && (
+                    <Row className="mb-6">
+                    <Col span={24}>
+                        <Card 
+                            title={
+                                <h2>
+                                    Booth Location Map
+                                </h2>
+                            }
+                        >
+                            <Image
+                                src={boothMap}
+                                alt="Booth Location"
+                                style={{ width: '100%', borderRadius: 8 }}
+                            />
+                        </Card>
+                    </Col>
+                </Row>                
+                )}
+    
+{/* Admin Statistics Section */}
+{userRole === 'admin' && (
+ <Card className="mb-6">
+        <Row gutter={16}>
+            {/* Existing Pie Chart for Detailed Booking Statistics */}
+            <Col span={24}>
+                <Card title="Overall Slot Booking Statistics"style={{ position: "relative", backgroundColor: "#FCFCFC", 
+                                                                    color: "#FCFCFC", 
+                                                                    borderRadius: "8px", 
+                                                                    border: "1px solid #800080", 
+                                                                    padding: "10px"  }}
+                                                                    hoverable // Optional: Provides default hover effect on the card
+                                                                    onMouseEnter={(e) => {
+                                                                        e.currentTarget.style.transform = "translateY(-2px)"; // Moves the card up slightly
+                                                                        e.currentTarget.style.boxShadow = "0 4px 12px rgba(155, 113, 195, 0.2)"; // Applies a soft purple shadow
+                                                                    }}
+                                                                    onMouseLeave={(e) => {
+                                                                        e.currentTarget.style.transform = "translateY(0)"; // Resets the position
+                                                                        e.currentTarget.style.boxShadow = "none"; // Removes the shadow when not hovering
+                                                                    }}
+                                                                    >
+                    <ResponsiveContainer width="90%" height={320}>
+                        <PieChart>
+                            <Pie
+                                data={calculateStats()}
+                                innerRadius={60}
+                                outerRadius={100}
+                                paddingAngle={5}
+                                dataKey="value"
+                                label={({ name, value }) => `${name}: ${value}`}
+                                onClick={(data, index) => {
+                                    setHighlightedSlot(
+                                        highlightedSlot === index ? null : index
+                                    ); // Toggle highlight by clicking the slice
+                                }}
+                                style={{ cursor: "pointer" }} // Change cursor to pointer for slices
+                            >
+                                {calculateStats().map((entry, index) => (
+                                    <Cell
+                                        key={`cell-${index}`}
+                                        fill={
+                                            highlightedSlot === null ||
+                                            highlightedSlot === entry.name
+                                                ? COLORS[index % COLORS.length]
+                                                : "lightgray" // Dim other slices
+                                        }
+                                        stroke={
+                                            highlightedSlot === entry.name ? "#000" : null // Highlight border of selected slice
+                                        }
+                                        strokeWidth={highlightedSlot === entry.name ? 2 : 1}
+                                        style={{ cursor: "pointer" }} // Add pointer cursor on hover
+                                    />
+                                ))}
+                            </Pie>
+                            <Tooltip
+                                formatter={(value, name) => [`${value} groups`, name]}
+                                labelFormatter={(label) => `Slot ${label}`}
+                            />
+                            <Legend
+                                layout="verticle" // Change to 'horizontal' for horizontal alignment
+                                align="right" // Centers the legend horizontally
+                                verticalAlign="middle" // Aligns the legend to the top of the chart
+                                className="legend-container"
+                                wrapperStyle={{ cursor: "pointer" }} // Optional: Adjust margin to position the legend correctly
+                                onClick={(data) => handleLegendClick(data.value)} // Handle clicks on legend
+                                payload={calculateStats().map((entry, index) => ({
+                                    id: entry.name,
+                                    value: entry.name,
+                                    type: "square",
+                                    color: COLORS[index % COLORS.length],
+                                }))}
+                            />
+                        </PieChart>
+                    </ResponsiveContainer>
+                </Card>
+            </Col>
+        </Row>
+        <hr style={{ margin: "20px 0", border: "none" }} />
+        
+        {/* Slot A and Slot B Booking Progress Section */}
+        <Row gutter={16} className="mt-6">
+            {/* Slot A Booking Progress */}
+            <Col span={8}>
+                <Card title="Slot A Booking Progress" 
+                    style={{ position: "relative", backgroundColor: "#FCFCFC", 
+                        color: "#4B0082", 
+                        borderRadius: "8px", 
+                        border: "1px solid #800080", 
+                        padding: "10px"}}
+                        hoverable // Optional: Provides default hover effect on the card
+                                                                    onMouseEnter={(e) => {
+                                                                        e.currentTarget.style.transform = "translateY(-2px)"; // Moves the card up slightly
+                                                                        e.currentTarget.style.boxShadow = "0 4px 12px rgba(155, 113, 195, 0.2)"; // Applies a soft purple shadow
+                                                                    }}
+                                                                    onMouseLeave={(e) => {
+                                                                        e.currentTarget.style.transform = "translateY(0)"; // Resets the position
+                                                                        e.currentTarget.style.boxShadow = "none"; // Removes the shadow when not hovering
+                                                                    }}
+                >
+                    <ResponsiveContainer width="100%" height={250}>
+                        <PieChart>
+                            <Pie
+                                data={[
+                                    {
+                                        name: 'Booked',
+                                        value: slotABookingDetails.length, // Actual count of booked booths in Slot A
+                                        fill: '#8884d8',
+                                        count: slotABookingDetails.length // Booked booths count
+                                    },
+                                    {
+                                        name: 'Not booked',
+                                        value: allGroupsSlotA.length - slotABookingDetails.length, // Available booths count
+                                        fill: '#d0d0d0',
+                                        count: allGroupsSlotA.length - slotABookingDetails.length // Available booths count
+                                    },
+                                ]}
+                                innerRadius="40%" // Donut effect
+                                outerRadius="80%"
+                                paddingAngle={5}
+                                dataKey="value"
+                                label={({ name, value }) => `${name}: ${value}`} // Show actual count in label
+                            >
+                                {[ 
+                                    { name: 'Booked', fill: '#8884d8' },
+                                    { name: 'Not booked', fill: '#d0d0d0' }
+                                ].map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                                ))}
+                            </Pie>
+                            <Tooltip
+                                labelFormatter={(value) => `${value} Booths`} // Tooltip for booth counts
+                                formatter={(value, props) => {
+                                    const totalBooths = allGroupsSlotA.length; // Total booths in Slot A
+                                    const percentage = ((value / totalBooths) * 100).toFixed(2); // Calculate percentage
+                                    return [`${percentage}%` || 'No Group']; // Display percentage
+                                }}
+                            />
+                        </PieChart>
+                    </ResponsiveContainer>
+                </Card>
+            </Col>
+
+            {/* Slot B Booking Progress */}
+            <Col span={8}>
+                <Card title="Slot B Booking Progress"
+                style={{ position: "relative", backgroundColor: "#FCFCFC", 
+                    color: "#4B0082", 
+                    borderRadius: "8px", 
+                    border: "1px solid #800080", 
+                    padding: "10px"}}
+                    hoverable // Optional: Provides default hover effect on the card
+                                                                    onMouseEnter={(e) => {
+                                                                        e.currentTarget.style.transform = "translateY(-2px)"; // Moves the card up slightly
+                                                                        e.currentTarget.style.boxShadow = "0 4px 12px rgba(155, 113, 195, 0.2)"; // Applies a soft purple shadow
+                                                                    }}
+                                                                    onMouseLeave={(e) => {
+                                                                        e.currentTarget.style.transform = "translateY(0)"; // Resets the position
+                                                                        e.currentTarget.style.boxShadow = "none"; // Removes the shadow when not hovering
+                                                                    }}
+                >
+                    <ResponsiveContainer width="100%" height={250}>
+                        <PieChart>
+                            <Pie
+                                data={[
+                                    {
+                                        name: 'Booked',
+                                        value: slotBBookingDetails.length, // Actual count of booked booths in Slot B
+                                        fill: '#82ca9d',
+                                        count: slotBBookingDetails.length // Booked booths count
+                                    },
+                                    {
+                                        name: 'Not booked',
+                                        value: allGroupsSlotB.length - slotBBookingDetails.length, // Available booths count
+                                        fill: '#d0d0d0',
+                                        count: allGroupsSlotB.length - slotBBookingDetails.length // Available booths count
+                                    },
+                                ]}
+                                innerRadius="40%" // Donut effect
+                                outerRadius="80%"
+                                paddingAngle={5}
+                                dataKey="value"
+                                label={({ name, value }) => `${name}: ${value}`} // Show actual count in label
+                            >
+                                {[ 
+                                    { name: 'Booked', fill: '#82ca9d' },
+                                    { name: 'Not booked', fill: '#d0d0d0' }
+                                ].map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                                ))}
+                            </Pie>
+                            <Tooltip
+                                labelFormatter={(value) => `${value} Booths`} // Tooltip for booth counts
+                                formatter={(value, props) => {
+                                    const totalBooths = allGroupsSlotB.length; // Total booths in Slot B
+                                    const percentage = ((value / totalBooths) * 100).toFixed(2); // Calculate percentage
+                                    return [`${percentage}%` || 'No Group']; // Display percentage
+                                }}
+                            />
+                        </PieChart>
+                    </ResponsiveContainer>
+                </Card>
+            </Col>
+
+            {/* Overall Booth Booking Progress */}
+            <Col span={8}>
+                <Card title="Overall Slot Booking Progress"
+                style={{ position: "relative", backgroundColor: "#FCFCFC", 
+                    color: "#4B0082", 
+                    borderRadius: "8px", 
+                    border: "1px solid #800080", 
+                    padding: "10px"}}
+                    hoverable // Optional: Provides default hover effect on the card
+                                                                    onMouseEnter={(e) => {
+                                                                        e.currentTarget.style.transform = "translateY(-2px)"; // Moves the card up slightly
+                                                                        e.currentTarget.style.boxShadow = "0 4px 12px rgba(155, 113, 195, 0.2)"; // Applies a soft purple shadow
+                                                                    }}
+                                                                    onMouseLeave={(e) => {
+                                                                        e.currentTarget.style.transform = "translateY(0)"; // Resets the position
+                                                                        e.currentTarget.style.boxShadow = "none"; // Removes the shadow when not hovering
+                                                                    }}
+                >
+                    <div style={{
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    height: '100%',
+                                    padding: '20px 0',
+                                }}>
+                        <h2 style={{ fontSize: '3em', color: '#3f8600' }}>
+                            {calculatePercentage(
+                                slotABookingDetails.length + slotBBookingDetails.length,
+                                allGroupsSlotA.length + allGroupsSlotB.length
+                            )}
+                            %
+                        </h2>
+                        <p>of all slot booking progress</p>
+                    </div>
+                </Card>
+            </Col>
+        </Row>
+    </Card>
+)}
+
+
+                {/* Admin Progress Section */}
+                {userRole === 'admin' && (
+                    <>
+                        <Card title={<Space><CalendarOutlined /> Booking Details</Space>} 
+                        style={{ position: "relative", backgroundColor: "#FCFCFC", 
+                            color: "#4B0082", 
+                            borderRadius: "8px", 
+                            padding: "10px"}}
+                        extra={
+                            <Button type="primary" onClick={toggleBoothMapPopup}>
+                                View Booth Map
+                            </Button>
+                        }
+                        hoverable // Optional: Provides default hover effect on the card
+                                                                    onMouseEnter={(e) => {
+                                                                        e.currentTarget.style.transform = "translateY(-2px)"; // Moves the card up slightly
+                                                                        e.currentTarget.style.boxShadow = "0 4px 12px rgba(155, 113, 195, 0.2)"; // Applies a soft purple shadow
+                                                                    }}
+                                                                    onMouseLeave={(e) => {
+                                                                        e.currentTarget.style.transform = "translateY(0)"; // Resets the position
+                                                                        e.currentTarget.style.boxShadow = "none"; // Removes the shadow when not hovering
+                                                                    }}
+                        >
+                            <Tabs defaultActiveKey="A">
+                                <TabPane tab="Slot A" key="A">
+                                    <Table
+                                        columns={bookingColumns}
+                                        dataSource={getAllGroupsWithStatus('A')}
+                                        pagination={false}
+                                        rowKey="groupName"
+                                    />
+                                </TabPane>
+                                <TabPane tab="Slot B" key="B">
+                                    <Table
+                                        columns={bookingColumns}
+                                        dataSource={getAllGroupsWithStatus('B')}
+                                        pagination={false}
+                                        rowKey="groupName"
+                                    />
+                                </TabPane>
+                            </Tabs>
+                        </Card>
+                        
+
+                        {/* Booth Map Popup */}
+                        <Modal
+                            visible={isBoothMapVisible}
+                            title={
+                                <h2 className="admin-booth-map">Booth Location Map</h2> // Use h1 and add your desired class
+                            }
+                            footer={null}
+                            onCancel={toggleBoothMapPopup}
+                            width="60%" 
+                        >
+                            <Image
+                                src={boothMap}
+                                alt="Booth Location"
+                                style={{ width: '100%', borderRadius: 8 }}
+                            />
+                        </Modal>
+                    </>
+                )}
+    
+                {/* Student Booking Section */}
+                {userRole === 'student' && (
+                    <>
+                        <Card className="mb-6">
+                            <Space direction="vertical" style={{ width: '100%' }} size="large">
+                                <Row gutter={16}>
+                                    <Col span={12}>
+                                        <div className="mb-2">Select Booth for Slot {userAssignedSlot}</div>
+                                        <Select
+                                            style={{ width: '100%' }}
+                                            value={selectedBooth}
+                                            onChange={setSelectedBooth}
+                                            disabled={isBooked}
+                                        >
+                                            {getAvailableBooths().map(boothNum => (
+                                                <Select.Option key={boothNum} value={boothNum}>
+                                                    Booth {boothNum}
+                                                </Select.Option>
+                                            ))}
+                                        </Select>
+                                    </Col>
+                                    <Col span={12}>
+                                        <div className="mb-2">&nbsp;</div>
+                                        <Space>
+                                            <Button
+                                                type="primary"
+                                                onClick={handleBookBooth}
+                                                disabled={isBooked}
+                                                icon={<CheckOutlined />}
+                                            >
+                                                Book Booth
+                                            </Button>
+                                            <Button
+                                                danger
+                                                onClick={handleCancelBooking}
+                                                disabled={!isBooked}
+                                                icon={<CloseOutlined />}
+                                            >
+                                                Cancel Booking
+                                            </Button>
+                                        </Space>
+                                    </Col>
+                                </Row>
+                            </Space>
+                        </Card>
+    
+                        <Table
+                            columns={bookingColumns}
+                            dataSource={getStudentGroupsWithStatus()}
+                            pagination={false}
+                            rowKey="groupName"
+                        />
+                    </>
+                )}
+    
+                {/* Prompts */}
+                {showPromptConfirm && (
+                    <PromptConfirm
+                        message={confirmationMessage}
+                        onConfirm={() => {
+                            if (onConfirmCallback) onConfirmCallback();
+                        }}
+                        onCancel={() => setShowPromptConfirm(false)}
+                    />
+                )}
+                {showPromptSuccess && (
+                    <PromptSuccess 
+                        message={successMessage}
+                        onClose={handleCloseSuccessPrompt} 
+                    />
+                )}
+                {showPromptWarning && (
+                    <PromptWarning 
+                        message={warningMessage} 
+                        onClose={handleCloseWarningPrompt} 
+                    />
+                )}
+            </Content>
+            </div>
+        </Layout>
+    );    
+};
+
+export default BoothBookingSystem;
